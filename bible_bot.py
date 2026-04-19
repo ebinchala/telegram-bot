@@ -1,39 +1,37 @@
 import requests
 import telebot
-from apscheduler.schedulers.blocking import BlockingScheduler
 import random
 from datetime import date
 
+# ================== YOUR SETTINGS ==================
 TOKEN = "8537751985:AAFLIZJkJnVcX64BTHyoRYw9Lp-BthDqqf4"
 CHAT_ID = "-1002240045747"
+# ==================================================
 
 bot = telebot.TeleBot(TOKEN)
 BASE_URL = "https://bible-api-kappa.vercel.app/api/v1"
 
-def get_amharic_daily_verse():
+def post_daily_verse():
     try:
+        # Same verse for everyone on the same day
         random.seed(date.today().toordinal())
         
+        # Get books
         books_resp = requests.get(f"{BASE_URL}/listbookids").json()
         book_list = list(books_resp.get("data", {}).values())
-        if not book_list:
-            raise Exception("No books found")
-        
         book = random.choice(book_list)
-        
+
+        # Get chapters
         info = requests.get(f"{BASE_URL}/book/info/{book}").json()["data"]
         chapters = info.get("chapters", 1)
         chapter = random.randint(1, chapters)
 
+        # Get Amharic verses
         verses_resp = requests.get(f"{BASE_URL}/verses/amhara/{book}/{chapter}").json()
         verses = verses_resp.get("data", [])
-        if not verses:
-            raise Exception("No verses returned")
-
         verse_obj = random.choice(verses)
-        
-        book_name = verse_obj.get("book", book)
-        reference = f"{book_name} {verse_obj.get('chapter')}:{verse_obj.get('verseNum')}"
+
+        reference = f"{verse_obj.get('book', book)} {verse_obj.get('chapter')}:{verse_obj.get('verseNum')}"
         text = verse_obj.get("verse", "ጥቅስ አልተገኘም")
 
         message = f"""🌟 <b>የዛሬው መጽሐፍ ቅዱስ ጥቅስ</b> 🌟
@@ -44,35 +42,16 @@ def get_amharic_daily_verse():
 
 #DailyBibleVerse #መጽሐፍቅዱስ #አማርኛ"""
 
-        return message
-
-    except Exception as e:
-        print("Error:", e)
-        return """🌟 <b>የዛሬው መጽሐፍ ቅዱስ ጥቅስ</b> 🌟
-
-እግዚአብሔር ከእናንተ ጋር ይሁን። ነገ እንደገና እንገናኛለን!
-
-<i>መጽሐፍ ቅዱስ</i>
-#DailyBibleVerse"""
-
-# Scheduler
-scheduler = BlockingScheduler(timezone='Africa/Addis_Ababa')
-
-@scheduler.scheduled_job('cron', hour=23, minute=0)
-def post_daily_verse():
-    message = get_amharic_daily_verse()
-    try:
         bot.send_message(CHAT_ID, message, parse_mode='HTML')
-        print(f"✅ Posted at {date.today()} 11:00 PM EAT")
-    except Exception as e:
-        print(f"❌ Failed to post: {e}")
+        print("✅ Verse posted successfully to the channel!")
 
-# ================== START ==================
+    except Exception as e:
+        print("❌ Error:", e)
+        try:
+            bot.send_message(CHAT_ID, "ዛሬ ጥቅስ ማግኘት አልቻልኩም 😔 ነገ እንደገና እንሞክራለን!", parse_mode='HTML')
+        except:
+            pass
+
 if __name__ == "__main__":
-    print("🤖 Amharic Daily Bible Verse Bot started...")
-    print("   → Will post every day at 11:00 PM Ethiopian time")
-    
-    # === TEST LINE - REMOVE LATER ===
-    post_daily_verse()   # This posts NOW for testing
-    
-    scheduler.start()
+    print("🤖 Starting Amharic Bible Bot...")
+    post_daily_verse()   # This will post RIGHT NOW when the service starts
