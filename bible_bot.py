@@ -5,7 +5,7 @@ from datetime import date
 
 # ================== YOUR SETTINGS ==================
 TOKEN = "8537751985:AAEizyZKR4SPqDkklxSdEKlNl0UyVWCRWgk"
-CHAT_ID = "-1002240045747"
+CHAT_ID = "--1003925405554"
 # ==================================================
 
 bot = telebot.TeleBot(TOKEN)
