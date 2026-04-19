@@ -1,53 +1,74 @@
+import requests
 import telebot
 import random
 from datetime import date
 
 # ================== YOUR SETTINGS ==================
 TOKEN = "8537751985:AAEizyZKR4SPqDkklxSdEKlNl0UyVWCRWgk"
-CHAT_ID = "-1003925405554"     # ← Your new test channel
+CHAT_ID = "-1003925405554"   # Your test channel
 # ==================================================
 
 bot = telebot.TeleBot(TOKEN)
 
-# Built-in Amharic Bible Verses (No API needed)
-verses = [
-    {"text": "እግዚአብሔር ብርቱ ግንብ ነው፤ በእርሱ የሚያመን ሰው ደህንነት ይኖረዋል።", "ref": "ምሳሌ 18:10"},
-    {"text": "በእግዚአብሔር ታመኑ፤ በእግዚአብሔር ታመኑ።", "ref": "ኢሳይያስ 26:4"},
-    {"text": "እግዚአብሔር ከእኔ ጋር ነው፤ እፈራለሁን?", "ref": "መዝሙር 27:1"},
-    {"text": "ነገር ግን እኔ በእግዚአብሔር ታይቼ ነገር ሁሉን በእርሱ እችላለሁ።", "ref": "ፊልጵስዩስ 4:13"},
-    {"text": "እግዚአብሔር ለእናንተ ምን እንደሚያደርግ አስቡ።", "ref": "ኤርምያስ 29:11"},
-    {"text": "የእግዚአብሔር ቃል ለዘላለም ይኖራል።", "ref": "ኢሳይያስ 40:8"},
-    {"text": "ፍቅር ታጋሽ ነው፤ ፍቅር ቸር ነው።", "ref": "1 ቆሮንቶስ 13:4"},
-    {"text": "በእግዚአብሔር ፊት ሁሉም ነገር ይቻላል።", "ref": "ማቴዎስ 19:26"},
-    {"text": "እግዚአብሔር ይጠብቀናል። እኛ እንጠብቃለን።", "ref": "መዝሙር 130:5"},
-    {"text": "ደስ ይበላችሁ፤ ሁልጊዜ ደስ ይበላችሁ።", "ref": "1 ተሰሎንቄ 5:16"}
-    # You can add more verses later
-]
+# New / Alternative Amharic Bible API
+BASE_URL = "https://bible-api-five.vercel.app"
 
 def post_daily_verse():
+    print("🚀 Trying to fetch Amharic verse from API...")
     try:
-        # Same verse for the whole day
         random.seed(date.today().toordinal())
-        verse = random.choice(verses)
+
+        # 1. Get list of books (Amharic version)
+        print("Fetching book list...")
+        books_resp = requests.get(f"{BASE_URL}/listbookids", timeout=15)
+        books_resp.raise_for_status()
+        book_list = list(books_resp.json().get("data", {}).values())
+
+        if not book_list:
+            raise Exception("No books found")
+
+        book = random.choice(book_list)
+        print(f"Selected book: {book}")
+
+        # 2. Get number of chapters
+        info = requests.get(f"{BASE_URL}/book/info/{book}", timeout=10).json()["data"]
+        chapters = info.get("chapters", 1)
+        chapter = random.randint(1, chapters)
+        print(f"Selected chapter: {chapter}")
+
+        # 3. Get Amharic verses
+        print("Fetching verses...")
+        verses_resp = requests.get(f"{BASE_URL}/verses/amhara/{book}/{chapter}", timeout=15)
+        verses_resp.raise_for_status()
+        verses = verses_resp.json().get("data", [])
+
+        if not verses:
+            raise Exception("No verses returned")
+
+        verse_obj = random.choice(verses)
+
+        reference = f"{verse_obj.get('book', book)} {verse_obj.get('chapter')}:{verse_obj.get('verseNum')}"
+        text = verse_obj.get("verse", "ጥቅስ አልተገኘም")
 
         message = f"""🌟 <b>የዛሬው መጽሐፍ ቅዱስ ጥቅስ</b> 🌟
 
-{verse['text']}
+{text}
 
-<i>{verse['ref']}</i>
+<i>{reference}</i>
 
 #DailyBibleVerse #መጽሐፍቅዱስ #አማርኛ"""
 
         bot.send_message(CHAT_ID, message, parse_mode='HTML')
-        print("✅ Verse posted successfully to @testbible")
+        print("✅ Verse posted successfully to @testbible !")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        error_text = str(e)[:250]
+        print(f"❌ Error: {error_text}")
         try:
-            bot.send_message(CHAT_ID, "ዛሬ ጥቅስ ማግኘት አልቻልኩም 😔 ነገ እንደገና እንሞክራለን!", parse_mode='HTML')
+            bot.send_message(CHAT_ID, f"ዛሬ ጥቅስ ማግኘት አልቻልኩም 😔\n\nError: {error_text}", parse_mode='HTML')
         except:
             pass
 
 if __name__ == "__main__":
-    print("🤖 Amharic Daily Bible Bot started on test channel...")
-    post_daily_verse()        # Posts immediately for testing
+    print("🤖 Amharic Daily Bible Bot (API version) started on test channel...")
+    post_daily_verse()   # Posts immediately for testing
