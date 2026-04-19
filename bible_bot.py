@@ -3,68 +3,75 @@ import telebot
 import random
 from datetime import date
 
-TOKEN = "8537751985:AAEizyZKR4SPqDkklxSdEKlNl0UyVWCRWgk"   # ← Use your CURRENT token
+# ================== YOUR SETTINGS ==================
+TOKEN = "8537751985:AAEizyZKR4SPqDkklxSdEKlNl0UyVWCRWgk"
 CHAT_ID = "-1002240045747"
+# ==================================================
 
 bot = telebot.TeleBot(TOKEN)
-BASE_URL = "https://bible-api-kappa.vercel.app/api/v1"
+
+# New working Amharic Bible API
+BASE_URL = "https://ethiopic-bible-api.vercel.app"
 
 def post_daily_verse():
-    print("🤖 Bot started - trying to post verse...")
+    print("🚀 Starting to fetch Amharic verse...")
     try:
         random.seed(date.today().toordinal())
 
-        # Get books
-        print("Fetching book list from API...")
-        books_resp = requests.get(f"{BASE_URL}/listbookids", timeout=15)
+        # Get list of books (in Amharic where possible)
+        books_resp = requests.get(f"{BASE_URL}/books", timeout=15)
         books_resp.raise_for_status()
-        book_data = books_resp.json()
-        book_list = list(book_data.get("data", {}).values()) if isinstance(book_data.get("data"), dict) else book_data.get("data", [])
-        
+        book_list = books_resp.json()
+
         if not book_list:
-            raise Exception("No books found in API response")
+            raise Exception("No books found")
 
+        # Pick random book
         book = random.choice(book_list)
-        print(f"Selected book: {book}")
+        book_id = book.get("id") or book.get("book_id")
+        book_name_am = book.get("name_am") or book.get("name") or "መጽሐፍ ቅዱስ"
 
-        # Get chapter
-        info = requests.get(f"{BASE_URL}/book/info/{book}", timeout=10).json()["data"]
-        chapters = info.get("chapters", 1)
+        print(f"Selected book: {book_name_am}")
+
+        # Get chapters count
+        info_resp = requests.get(f"{BASE_URL}/books/{book_id}", timeout=10)
+        info_resp.raise_for_status()
+        chapters = info_resp.json().get("chapters", 1)
         chapter = random.randint(1, chapters)
-        print(f"Selected chapter: {chapter}")
 
-        # Get Amharic verse
-        print("Fetching Amharic verse...")
-        verses_resp = requests.get(f"{BASE_URL}/verses/amhara/{book}/{chapter}", timeout=10)
+        # Get verses in that chapter (Amharic)
+        verses_resp = requests.get(f"{BASE_URL}/verses/{book_id}/{chapter}", timeout=10)
         verses_resp.raise_for_status()
-        verses = verses_resp.json().get("data", [])
-        
+        verses = verses_resp.json().get("verses", [])
+
         if not verses:
-            raise Exception("No Amharic verses returned")
+            raise Exception("No verses found")
 
         verse_obj = random.choice(verses)
-        reference = f"{verse_obj.get('book', book)} {verse_obj.get('chapter')}:{verse_obj.get('verseNum')}"
-        text = verse_obj.get("verse", "ጥቅስ አልተገኘም")
+        verse_text = verse_obj.get("text") or verse_obj.get("verse")
+        verse_num = verse_obj.get("verse") or verse_obj.get("number") or "?"
+
+        reference = f"{book_name_am} {chapter}:{verse_num}"
 
         message = f"""🌟 <b>የዛሬው መጽሐፍ ቅዱስ ጥቅስ</b> 🌟
 
-{text}
+{verse_text}
 
 <i>{reference}</i>
 
 #DailyBibleVerse #መጽሐፍቅዱስ #አማርኛ"""
 
         bot.send_message(CHAT_ID, message, parse_mode='HTML')
-        print("✅ Verse successfully sent to channel!")
+        print("✅ Verse posted successfully!")
 
     except Exception as e:
-        error_text = f"❌ Error: {str(e)[:300]}"
-        print(error_text)
+        error_text = str(e)[:200]
+        print(f"❌ Error: {error_text}")
         try:
             bot.send_message(CHAT_ID, f"ዛሬ ጥቅስ ማግኘት አልቻልኩም 😔\n\n{error_text}", parse_mode='HTML')
-        except Exception as send_error:
-            print("Could not send error message:", send_error)
+        except:
+            pass
 
 if __name__ == "__main__":
-    print("🚀 Amharic Daily Bible Bot is starting on Railway...")
+    print("🤖 Amharic Daily Bible Bot is starting...")
     post_daily_verse()
